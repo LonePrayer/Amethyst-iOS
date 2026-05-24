@@ -8,6 +8,7 @@
 #import "utils.h"
 
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
+#include <string.h>
 
 extern void init_setupAccounts(void);
 extern void init_setupCustomControls(void);
@@ -135,6 +136,41 @@ static NSString *AMSideStoreSignedBundleIdentifier(void) {
 }
 
 - (void)handleAutoBootIfNeeded {
+    const char *ps2AutoBoot = getenv("AM_PS2_AUTO_BOOT");
+    NSString *pendingPS2AutoBoot = ps2AutoBoot && ps2AutoBoot[0] != '\0'
+        ? @(ps2AutoBoot)
+        : [NSUserDefaults.standardUserDefaults stringForKey:@"AMInternalPS2AutoBootPath"];
+    if (!self.didHandleAutoBoot && pendingPS2AutoBoot.length > 0) {
+        self.didHandleAutoBoot = YES;
+        AMModule *module = [AMModuleRegistry.sharedRegistry moduleWithIdentifier:@"ps2"];
+        if (!module) {
+            [self showLaunchFailure:@"PS2 module is not available."];
+            return;
+        }
+
+        NSLog(@"[PS2] Auto boot requested: %@", pendingPS2AutoBoot);
+        if (![self canLaunchModule:module]) {
+            return;
+        }
+
+        void (^launchBlock)(void) = ^{
+            [self launchModule:module];
+        };
+        const char *noJIT = getenv("AM_PS2_AUTO_BOOT_NO_JIT");
+        BOOL shouldSkipJIT = noJIT && strcmp(noJIT, "1") == 0;
+        if (module.requiresJIT && !shouldSkipJIT && !isJITEnabled(false)) {
+            LauncherNavigationController *navigationController = [self contentNavigationController];
+            if (!navigationController) {
+                [self showLaunchFailure:@"Cannot find launcher navigation controller."];
+                return;
+            }
+            [navigationController runAfterJITEnabled:launchBlock];
+        } else {
+            launchBlock();
+        }
+        return;
+    }
+
     const char *autoBootPath = getenv("AM_DOLPHIN_AUTO_BOOT");
     NSString *pendingAutoBootPath = autoBootPath && autoBootPath[0] != '\0'
         ? @(autoBootPath)

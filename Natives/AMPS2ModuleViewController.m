@@ -1255,6 +1255,7 @@ static BOOL AMPS2CanBootWithCurrentJIT(void)
 @property(nonatomic) NSArray<NSURL *> *memoryCardURLs;
 @property(nonatomic) NSArray<NSDictionary<NSString *, NSString *> *> *resourceRows;
 @property(nonatomic) AMPS2DocumentPickerMode documentPickerMode;
+@property(nonatomic) BOOL didHandleAutoBoot;
 @end
 
 @implementation AMPS2ModuleViewController
@@ -1284,11 +1285,56 @@ static BOOL AMPS2CanBootWithCurrentJIT(void)
     [self refreshDiagnostics];
 }
 
+- (void)viewDidAppear:(BOOL)animated
+{
+    [super viewDidAppear:animated];
+    [self handleAutoBootIfNeeded];
+}
+
 - (void)refreshDiagnostics
 {
     [self loadCoreIfNeeded];
     [self reloadRows];
     [self.tableView reloadData];
+}
+
+- (void)handleAutoBootIfNeeded
+{
+    const char *autoBoot = getenv("AM_PS2_AUTO_BOOT");
+    NSString *request = autoBoot && autoBoot[0] != '\0'
+        ? @(autoBoot)
+        : [NSUserDefaults.standardUserDefaults stringForKey:@"AMInternalPS2AutoBootPath"];
+    if (self.didHandleAutoBoot || request.length == 0) {
+        return;
+    }
+
+    self.didHandleAutoBoot = YES;
+    [self refreshDiagnostics];
+
+    NSURL *gameURL = nil;
+    if (![request isEqualToString:@"1"] && ![request isEqualToString:@"first"]) {
+        NSURL *requestedURL = [NSURL fileURLWithPath:request];
+        for (NSURL *url in self.gameURLs) {
+            if ([url.path isEqualToString:requestedURL.path] || [url.lastPathComponent isEqualToString:request]) {
+                gameURL = url;
+                break;
+            }
+        }
+    }
+    if (!gameURL) {
+        gameURL = self.gameURLs.firstObject;
+    }
+
+    if (!gameURL) {
+        NSLog(@"[PS2] Auto boot failed: no software found in %@", self.softwareDirectoryURL.path);
+        [self showAlertWithTitle:@"PS2 Auto Boot Failed" message:@"No PS2 software found in external Software folder."];
+        return;
+    }
+
+    NSLog(@"[PS2] Auto boot selected: %@", gameURL.path);
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self showPendingBootForURL:gameURL];
+    });
 }
 
 - (void)loadCoreIfNeeded
