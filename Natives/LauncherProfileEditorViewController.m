@@ -107,7 +107,7 @@
               @"icon": @"folder",
               @"title": @"preference.title.game_directory",
               @"type": self.typeTextField,
-              @"placeholder": [NSString stringWithFormat:@". -> /Documents/instances/%@", getPrefObject(@"general.game_directory")]
+              @"placeholder": [NSString stringWithFormat:@". -> /Documents/amethyst/instances/%@", getPrefObject(@"general.game_directory")]
             },
             // Video and renderer settings
             @{@"key": @"renderer",

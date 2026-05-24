@@ -337,9 +337,13 @@ assets:
 
 payload: native dep_mg java jre assets
 	echo '[Amethyst v$(VERSION)] payload - start'
+	$(call METHOD_DIRCHECK,$(WORKINGDIR)/AngelAuraAmethyst.app/Modules)
 	$(call METHOD_DIRCHECK,$(WORKINGDIR)/AngelAuraAmethyst.app/libs)
 	$(call METHOD_DIRCHECK,$(WORKINGDIR)/AngelAuraAmethyst.app/libs_caciocavallo)
 	$(call METHOD_DIRCHECK,$(WORKINGDIR)/AngelAuraAmethyst.app/libs_caciocavallo17)
+	if [ -d "$(SOURCEDIR)/Modules" ]; then \
+		cp -R "$(SOURCEDIR)/Modules/." "$(WORKINGDIR)/AngelAuraAmethyst.app/Modules/" || exit 1; \
+	fi
 	cp -R $(SOURCEDIR)/Natives/resources/en.lproj/LaunchScreen.storyboardc $(WORKINGDIR)/AngelAuraAmethyst.app/Base.lproj/ || exit 1
 	cp -R $(SOURCEDIR)/Natives/resources/* $(WORKINGDIR)/AngelAuraAmethyst.app/ || exit 1
 	cp $(WORKINGDIR)/*.dylib $(WORKINGDIR)/AngelAuraAmethyst.app/Frameworks/ || exit 1
@@ -397,9 +401,7 @@ deploy:
 package: payload
 	echo '[Amethyst v$(VERSION)] package - start'
 	if [ '$(TEAMID)' != '-1' ] && [ '$(SIGNING_TEAMID)' != '-1' ] && [ -f '$(PROVISIONING)' ] && [ '$(DETECTPLAT)' = 'Darwin' ]; then \
-		printf '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n<dict>\n	<key>application-identifier</key>\n	<string>$(TEAMID).org.angelauramc.amethyst</string>\n	<key>com.apple.developer.team-identifier</key>\n	<string>$(TEAMID)</string>\n	<key>get-task-allow</key>\n	<true/>\n	<key>keychain-access-groups</key>\n	<array>\n	<string>$(TEAMID).*</string>\n	<string>com.apple.token</string>\n	</array>\n</dict>\n</plist>' > entitlements.codesign.xml; \
 		$(MAKE) codesign; \
-		rm -rf entitlements.codesign.xml; \
 	else \
 		echo 'Skipped codesigning. If not intentional, check your variables.'; \
 	fi

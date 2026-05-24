@@ -25,6 +25,33 @@
 
 static void *ProgressObserverContext = &ProgressObserverContext;
 
+static NSString *SideStoreSignedBundleIdentifier(void) {
+    NSString *bundleIdentifier = NSBundle.mainBundle.bundleIdentifier;
+    NSString *profilePath = [NSBundle.mainBundle pathForResource:@"embedded" ofType:@"mobileprovision"];
+    NSData *profileData = profilePath ? [NSData dataWithContentsOfFile:profilePath] : nil;
+    if (!profileData) {
+        return bundleIdentifier;
+    }
+
+    NSString *profile = [[NSString alloc] initWithData:profileData encoding:NSISOLatin1StringEncoding];
+    NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:@"<key>application-identifier</key>\\s*<string>([^<]+)</string>"
+                                                                           options:0
+                                                                             error:nil];
+    NSTextCheckingResult *match = [regex firstMatchInString:profile options:0 range:NSMakeRange(0, profile.length)];
+    if (!match || match.numberOfRanges < 2) {
+        return bundleIdentifier;
+    }
+
+    NSString *applicationIdentifier = [profile substringWithRange:[match rangeAtIndex:1]];
+    NSRange separator = [applicationIdentifier rangeOfString:@"."];
+    if (separator.location == NSNotFound || separator.location + 1 >= applicationIdentifier.length) {
+        return bundleIdentifier;
+    }
+
+    NSString *signedBundleIdentifier = [applicationIdentifier substringFromIndex:separator.location + 1];
+    return signedBundleIdentifier.length > 0 ? signedBundleIdentifier : bundleIdentifier;
+}
+
 @interface LauncherNavigationController () <UIDocumentPickerDelegate, UIPickerViewDataSource, PLPickerViewDelegate, UIPopoverPresentationControllerDelegate> {
 }
 
@@ -36,6 +63,8 @@ static void *ProgressObserverContext = &ProgressObserverContext;
 @property(nonatomic) UIButton* buttonInstall;
 @property(nonatomic) UIBarButtonItem* buttonInstallItem;
 @property(nonatomic) int profileSelectedAt;
+
+- (void)invokeAfterJITEnabled:(void(^)(void))handler returnHost:(NSString *)returnHost force:(BOOL)force;
 
 @end
 
@@ -146,6 +175,13 @@ static void *ProgressObserverContext = &ProgressObserverContext;
         };
         [BaseAuthenticator.current refreshTokenWithCallback:callback];
     }
+
+    if (getenv("AMETHYST_AUTO_LAUNCH") != NULL) {
+        NSLog(@"[SideJIT] Auto launch requested by environment");
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(8 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            [self launchMinecraftFromURL];
+        });
+    }
 }
 
 - (void)setViewControllers:(NSArray<UIViewController *> *)viewControllers animated:(BOOL)animated {
@@ -247,7 +283,7 @@ static void *ProgressObserverContext = &ProgressObserverContext;
     if (!vc.requiredJavaVersion) {
         return;
     }
-    [self invokeAfterJITEnabled:^{
+    [self runAfterJITEnabled:^{
         vc.modalPresentationStyle = UIModalPresentationFullScreen;
         NSLog(@"[ModInstaller] launching %@", vc.filepath);
         [self presentViewController:vc animated:YES completion:nil];
@@ -351,6 +387,13 @@ static void *ProgressObserverContext = &ProgressObserverContext;
     }
 }
 
+- (void)launchMinecraftFromURL {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        NSLog(@"[SideJIT] Launching Minecraft from URL or environment");
+        [self performInstallOrShowDetails:(self.buttonInstallItem ?: (id)self.buttonInstall)];
+    });
+}
+
 - (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context {
     if (context != ProgressObserverContext) {
         [super observeValueForKeyPath:keyPath ofObject:object change:change context:context];
@@ -384,7 +427,7 @@ static void *ProgressObserverContext = &ProgressObserverContext;
         self.progressViewMain.observedProgress = nil;
         if (self.task.metadata) {
             __block NSDictionary *metadata = self.task.metadata;
-            [self invokeAfterJITEnabled:^{
+            [self runAfterJITEnabled:^{
                 UIKit_launchMinecraftSurfaceVC(self.view.window, metadata);
             }];
         } else {
@@ -422,12 +465,37 @@ static void *ProgressObserverContext = &ProgressObserverContext;
     });
 }
 
-- (void)invokeAfterJITEnabled:(void(^)(void))handler {
+- (void)runAfterJITEnabled:(void(^)(void))handler {
+    [self invokeAfterJITEnabled:handler returnHost:@"jit-enabled" force:NO];
+}
+
+- (void)initializeJITWithCompletion:(void(^)(void))handler {
+    [self invokeAfterJITEnabled:handler returnHost:@"jit-enabled" force:NO];
+}
+
+- (void)forceInitializeJITWithCompletion:(void(^)(void))handler {
+    [self invokeAfterJITEnabled:handler returnHost:@"jit-enabled" force:YES];
+}
+
+- (void)invokeAfterJITEnabled:(void(^)(void))handler returnHost:(NSString *)returnHost force:(BOOL)force {
     localVersionList = remoteVersionList = nil;
     BOOL hasTrollStoreJIT = getEntitlementValue(@"jb.pmap_cs.custom_trust");
     BOOL isLiveContainer = getenv("LC_HOME_PATH") != NULL;
+    BOOL requiresDebuggerJIT = DeviceHasJITFlags(JIT_FLAG_FORCE_MIRRORED | JIT_FLAG_HAS_TXM);
+    NSString *sideStoreBundleIdentifier = SideStoreSignedBundleIdentifier();
+    NSString *returnURLString = [NSString stringWithFormat:@"sidestore-%@://%@", sideStoreBundleIdentifier, returnHost];
+    __block BOOL receivedJITReturn = NO;
+    id jitObserver = nil;
+    if (force) {
+        jitObserver = [NSNotificationCenter.defaultCenter addObserverForName:@"AMJITStatusDidChangeNotification"
+                                                                      object:nil
+                                                                       queue:nil
+                                                                  usingBlock:^(__unused NSNotification *notification) {
+            receivedJITReturn = YES;
+        }];
+    }
 
-    if (isJITEnabled(false)) {
+    if (!force && isJITEnabled(requiresDebuggerJIT)) {
         [ALTServerManager.sharedManager stopDiscovering];
         handler();
         return;
@@ -440,12 +508,24 @@ static void *ProgressObserverContext = &ProgressObserverContext;
         handler();
         return;
     } else if (@available(iOS 17.4, *)) {
-        NSString *scriptDataString = @"";
+        NSURLComponents *components = [[NSURLComponents alloc] init];
+        components.scheme = @"sidestore";
+        components.host = @"sidejit-enable";
+        NSMutableArray<NSURLQueryItem *> *queryItems = [@[
+            [NSURLQueryItem queryItemWithName:@"bundle-id" value:sideStoreBundleIdentifier],
+            [NSURLQueryItem queryItemWithName:@"return-url" value:returnURLString]
+        ] mutableCopy];
+        NSLog(@"[SideJIT] Bundle ID: %@", sideStoreBundleIdentifier);
+        NSLog(@"[SideJIT] Return URL: %@", returnURLString);
         if(DeviceHasJITFlags(JIT_FLAG_FORCE_MIRRORED | JIT_FLAG_HAS_TXM)) {
             NSData *scriptData = [NSData dataWithContentsOfFile:[NSBundle.mainBundle.bundlePath stringByAppendingPathComponent:@"UniversalJIT26.js"]];
-            scriptDataString = [@"&script-data=" stringByAppendingString:[scriptData base64EncodedStringWithOptions:0]];
+            if (scriptData) {
+                [queryItems addObject:[NSURLQueryItem queryItemWithName:@"script-data" value:[scriptData base64EncodedStringWithOptions:0]]];
+                [queryItems addObject:[NSURLQueryItem queryItemWithName:@"script-name" value:@"UniversalJIT26.js"]];
+            }
         }
-        [UIApplication.sharedApplication openURL:[NSURL URLWithString:[NSString stringWithFormat:@"stikjit://enable-jit?bundle-id=%@&pid=%d%@", NSBundle.mainBundle.bundleIdentifier, getpid(), scriptDataString]] options:@{} completionHandler:nil];
+        components.queryItems = queryItems;
+        [UIApplication.sharedApplication openURL:components.URL options:@{} completionHandler:nil];
     } else {
         // Assuming 16.7-17.3.1. SideStore still lacks this URL scheme at the time of writing, so it only jumps to SideStore.
         [UIApplication.sharedApplication openURL:[NSURL URLWithString:[NSString stringWithFormat:@"sidestore://sidejit-enable?pid=%d", getpid()]] options:@{} completionHandler:nil];
@@ -465,12 +545,17 @@ static void *ProgressObserverContext = &ProgressObserverContext;
     [self presentViewController:alert animated:YES completion:nil];
 
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        while (!isJITEnabled(false)) {
+        while (force ? !receivedJITReturn : !isJITEnabled(requiresDebuggerJIT)) {
             // Perform check for every 200ms
             usleep(1000*200);
         }
+        if (jitObserver) {
+            [NSNotificationCenter.defaultCenter removeObserver:jitObserver];
+        }
         dispatch_async(dispatch_get_main_queue(), ^{
-            [alert dismissViewControllerAnimated:YES completion:handler];
+            [NSNotificationCenter.defaultCenter postNotificationName:@"AMJITStatusDidChangeNotification" object:nil];
+            [alert dismissViewControllerAnimated:YES completion:nil];
+            handler();
         });
     });
 }

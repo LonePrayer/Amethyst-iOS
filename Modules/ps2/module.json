@@ -1,0 +1,31 @@
+{
+  "identifier": "ps2",
+  "name": "PS2",
+  "subtitle": "PlayStation 2 Emulator",
+  "imageName": "gamecontroller",
+  "entrypoint": "ps2",
+  "requiresJIT": true,
+  "requiresMemoryLimit": true,
+  "requiresExtendedVirtualAddressing": false,
+  "storageSubdirectories": [
+    "Software",
+    "Memcards",
+    "States",
+    "Config",
+    "Logs",
+    "Cache",
+    "Resources",
+    "Screenshots",
+    "Textures",
+    "Cheats",
+    "Patches",
+    "InputProfiles",
+    "Videos"
+  ],
+  "debugInfo": {
+    "runtime": "native",
+    "core": "libarmsx2_amethyst.dylib",
+    "upstream": "ARMSX2 / PCSX2",
+    "renderer": "Metal"
+  }
+}

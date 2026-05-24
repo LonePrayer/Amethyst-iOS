@@ -58,7 +58,7 @@
     [titleView setContentMode:UIViewContentModeScaleAspectFit];
     self.navigationItem.titleView = titleView;
     [titleView sizeToFit];
-    
+
     self.options = @[
         [LauncherMenuCustomItem vcClass:LauncherNewsViewController.class],
         [LauncherMenuCustomItem vcClass:LauncherProfilesViewController.class],

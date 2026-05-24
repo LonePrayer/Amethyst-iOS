@@ -169,6 +169,10 @@ int launchJVM(NSString *username, id launchTarget, int width, int height, int mi
 
         // Setup POJAV_RENDERER
         NSString *renderer = [PLProfiles resolveKeyForCurrentProfile:@"renderer"];
+        if ([renderer isEqualToString:@"auto"] && DeviceHasJITFlags(JIT_FLAG_FORCE_MIRRORED | JIT_FLAG_HAS_TXM)) {
+            renderer = @ RENDERER_NAME_GL4ES;
+            NSLog(@"[JavaLauncher] Using GL4ES for iOS 26 JIT renderer");
+        }
         NSLog(@"[JavaLauncher] RENDERER is set to %@\n", renderer);
         setenv("POJAV_RENDERER", renderer.UTF8String, 1);
         // Setup gameDir
@@ -265,6 +269,8 @@ int launchJVM(NSString *username, id launchTarget, int width, int height, int mi
     // On iOS 26, use mirror mapped JIT by default
     if (@available(iOS 26.0, *)) {
         margv[++margc] = "-XX:+MirrorMappedCodeCache";
+        margv[++margc] = "-XX:ReservedCodeCacheSize=32M";
+        margv[++margc] = "-XX:InitialCodeCacheSize=4M";
     }
 
     // Disable Forge 1.16.x early progress window

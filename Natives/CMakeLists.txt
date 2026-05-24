@@ -137,6 +137,12 @@ add_executable(AngelAuraAmethyst
   input/KeyboardInput.m
 
   AccountListViewController.m
+  AMExternalStorage.m
+  AMDolphinModuleViewController.m
+  AMModule.m
+  AMModuleRegistry.m
+  AMModulesViewController.m
+  AMPS2ModuleViewController.m
   AppDelegate.m
   CustomControlsViewController.m
   CustomControlsViewController+UndoManager.m

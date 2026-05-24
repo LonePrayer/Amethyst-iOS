@@ -10,5 +10,9 @@ NSMutableArray<NSDictionary *> *localVersionList, *remoteVersionList;
 - (void)enterModInstallerWithPath:(NSString *)path hitEnterAfterWindowShown:(BOOL)hitEnter;
 - (void)fetchLocalVersionList;
 - (void)setInteractionEnabled:(BOOL)enable forDownloading:(BOOL)downloading;
+- (void)launchMinecraftFromURL;
+- (void)initializeJITWithCompletion:(void(^)(void))handler;
+- (void)runAfterJITEnabled:(void(^)(void))handler;
+- (void)forceInitializeJITWithCompletion:(void(^)(void))handler;
 
 @end

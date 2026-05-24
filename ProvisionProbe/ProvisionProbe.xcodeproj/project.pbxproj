@@ -1,0 +1,87 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 56;
+	objects = {
+		111111111111111111111111 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
+		222222222222222222222222 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		232323232323232323232323 /* ProvisionProbe.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ProvisionProbe.entitlements; sourceTree = "<group>"; };
+		333333333333333333333333 /* ProvisionProbe.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ProvisionProbe.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		444444444444444444444444 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 111111111111111111111111 /* main.m */; };
+		555555555555555555555555 = {isa = PBXGroup; children = (666666666666666666666666 /* ProvisionProbe */, 777777777777777777777777 /* Products */); sourceTree = "<group>"; };
+		666666666666666666666666 /* ProvisionProbe */ = {isa = PBXGroup; children = (111111111111111111111111 /* main.m */, 222222222222222222222222 /* Info.plist */, 232323232323232323232323 /* ProvisionProbe.entitlements */); path = ProvisionProbe; sourceTree = "<group>"; };
+		777777777777777777777777 /* Products */ = {isa = PBXGroup; children = (333333333333333333333333 /* ProvisionProbe.app */); name = Products; sourceTree = "<group>"; };
+		888888888888888888888888 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (444444444444444444444444 /* main.m in Sources */); runOnlyForDeploymentPostprocessing = 0; };
+		999999999999999999999999 /* ProvisionProbe */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AAAAAAAAAAAAAAAAAAAAAAAA /* Build configuration list for PBXNativeTarget "ProvisionProbe" */;
+			buildPhases = (888888888888888888888888 /* Sources */);
+			buildRules = ();
+			dependencies = ();
+			name = ProvisionProbe;
+			productName = ProvisionProbe;
+			productReference = 333333333333333333333333 /* ProvisionProbe.app */;
+			productType = "com.apple.product-type.application";
+		};
+		BBBBBBBBBBBBBBBBBBBBBBBB /* Project object */ = {
+			isa = PBXProject;
+			attributes = {BuildIndependentTargetsInParallel = 1; LastUpgradeCheck = 2640; TargetAttributes = {999999999999999999999999 = {CreatedOnToolsVersion = 26.4;};};};
+			buildConfigurationList = CCCCCCCCCCCCCCCCCCCCCCCC /* Build configuration list for PBXProject "ProvisionProbe" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (en, Base);
+			mainGroup = 555555555555555555555555;
+			productRefGroup = 777777777777777777777777 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (999999999999999999999999 /* ProvisionProbe */);
+		};
+		DDDDDDDDDDDDDDDDDDDDDDDD /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = ProvisionProbe/ProvisionProbe.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 4QYW94SHKR;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ProvisionProbe/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = sb.cemuios.cemuios;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		EEEEEEEEEEEEEEEEEEEEEEEE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = ProvisionProbe/ProvisionProbe.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 4QYW94SHKR;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ProvisionProbe/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = sb.cemuios.cemuios;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		FFFFFFFFFFFFFFFFFFFFFFFF /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {}; name = Debug; };
+		121212121212121212121212 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {}; name = Release; };
+		AAAAAAAAAAAAAAAAAAAAAAAA /* Build configuration list for PBXNativeTarget "ProvisionProbe" */ = {isa = XCConfigurationList; buildConfigurations = (DDDDDDDDDDDDDDDDDDDDDDDD /* Debug */, EEEEEEEEEEEEEEEEEEEEEEEE /* Release */); defaultConfigurationIsVisible = 0; defaultConfigurationName = Debug; };
+		CCCCCCCCCCCCCCCCCCCCCCCC /* Build configuration list for PBXProject "ProvisionProbe" */ = {isa = XCConfigurationList; buildConfigurations = (FFFFFFFFFFFFFFFFFFFFFFFF /* Debug */, 121212121212121212121212 /* Release */); defaultConfigurationIsVisible = 0; defaultConfigurationName = Debug; };
+	};
+	rootObject = BBBBBBBBBBBBBBBBBBBBBBBB /* Project object */;
+}

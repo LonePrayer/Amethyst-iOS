@@ -4,6 +4,7 @@
 #import <UIKit/UIKit.h>
 
 #import "AppDelegate.h"
+#import "AMExternalStorage.h"
 #import "customcontrols/CustomControlsUtils.h"
 #import "HostManagerBridge.h"
 #import "JavaLauncher.h"
@@ -19,6 +20,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include <dirent.h>
 #include "utils.h"
 #include "codesign.h"
@@ -29,6 +31,12 @@
 int ptrace(int, pid_t, caddr_t, int);
 #define fm NSFileManager.defaultManager
 extern char** environ;
+
+static NSString *AMDocumentRootPath(void) {
+    NSString *home = @(getenv("HOME") ?: NSHomeDirectory().UTF8String);
+    BOOL isNotSandboxed = [home.lastPathComponent isEqualToString:NSUserName()];
+    return [NSString stringWithFormat:@"%@/Documents%@", home, isNotSandboxed ? @"/AngelAuraAmethyst" : @""];
+}
 
 void printEntitlementAvailability(NSString *key) {
     NSLog(@"* %@: %@", key, getEntitlementValue(key) ? @"YES" : @"NO");
@@ -230,6 +238,7 @@ void init_setupMultiDir() {
     for (NSString *dir in dirsToCreate) {
         [fm createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:nil];
     }
+    unlink(lasmPath.fileSystemRepresentation);
     [fm removeItemAtPath:lasmPath error:nil];
     [fm createSymbolicLinkAtPath:lasmPath withDestinationPath:multidirPath error:nil];
     [fm changeCurrentDirectoryPath:lasmPath];
@@ -249,25 +258,43 @@ void init_setupResolvConf() {
 void init_setupHomeDirectory() {
     setenv("HOME", [NSFileManager.defaultManager URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask]
         .lastObject.path.stringByDeletingLastPathComponent.UTF8String, 1);
-    NSString *homeDir;
-    NSError *homeError;
-    
-    BOOL isNotSandboxed = [@(getenv("HOME")).lastPathComponent isEqualToString:NSUserName()];
-    homeDir = [NSString stringWithFormat:@"%s/Documents%@", getenv("HOME"),
-        isNotSandboxed ? @"/AngelAuraAmethyst":@""];
 
-    if (![fm fileExistsAtPath:homeDir] ) {
-        [fm createDirectoryAtPath:homeDir withIntermediateDirectories:NO attributes:nil error:&homeError];
+    NSError *homeError = nil;
+    NSString *documentsRoot = AMDocumentRootPath();
+    NSString *appsRoot = documentsRoot;
+    NSString *amethystHome = [appsRoot stringByAppendingPathComponent:@"amethyst"];
+
+    if (![fm fileExistsAtPath:documentsRoot]) {
+        [fm createDirectoryAtPath:documentsRoot withIntermediateDirectories:YES attributes:nil error:&homeError];
     }
-    
+
+    if (homeError == nil) {
+        [fm createDirectoryAtPath:amethystHome withIntermediateDirectories:YES attributes:nil error:&homeError];
+    }
+
     if(homeError != nil) {
         // TODO: Persistent storage
         homeError = nil;
-        homeDir = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES).lastObject;
-        [fm createDirectoryAtPath:homeDir withIntermediateDirectories:YES attributes:nil error:&homeError];
+        documentsRoot = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES).lastObject;
+        appsRoot = documentsRoot;
+        amethystHome = [appsRoot stringByAppendingPathComponent:@"amethyst"];
+        [fm createDirectoryAtPath:amethystHome withIntermediateDirectories:YES attributes:nil error:&homeError];
     }
-    
-    setenv("POJAV_HOME", realpath(homeDir.UTF8String, NULL), 1);
+
+    BOOL restoredExternalHome = AMAmethystApplyStoredExternalHomeIfAvailable();
+    if (restoredExternalHome) {
+        NSLog(@"[Pre-init] External Minecraft home restored: %s", getenv("POJAV_HOME"));
+        setenv("AMETHYST_HOME", realpath(documentsRoot.UTF8String, NULL), 1);
+        setenv("AM_MODULES_HOME", realpath(appsRoot.UTF8String, NULL), 1);
+        return;
+    }
+
+    setenv("AMETHYST_HOME", realpath(documentsRoot.UTF8String, NULL), 1);
+    setenv("AM_MODULES_HOME", realpath(appsRoot.UTF8String, NULL), 1);
+    setenv("POJAV_HOME", realpath(amethystHome.UTF8String, NULL), 1);
+    NSLog(@"[Pre-init] Storage root: %s", getenv("AMETHYST_HOME"));
+    NSLog(@"[Pre-init] Apps root: %s", getenv("AM_MODULES_HOME"));
+    NSLog(@"[Pre-init] Minecraft home: %s", getenv("POJAV_HOME"));
 }
 
 int main(int argc, char *argv[]) {

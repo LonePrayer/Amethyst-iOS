@@ -15,6 +15,14 @@ public class UIKit {
 
     private static int guiScale;
 
+    private static int getGLFWIntField(String name, int fallback) {
+        try {
+            return GLFW.class.getField(name).getInt(null);
+        } catch (ReflectiveOperationException e) {
+            return fallback;
+        }
+    }
+
     private static void patch_FlatLAF_setLinux() {
         String osName = System.getProperty("os.name");
         System.setProperty("os.name", "Linux");
@@ -53,7 +61,9 @@ public class UIKit {
         String str = MCOptionUtils.get("guiScale");
         guiScale = (str == null ? 0 :Integer.parseInt(str));
 
-        int scale = Math.max(Math.min(GLFW.mGLFWWindowWidth / 320, GLFW.mGLFWWindowHeight / 240), 1);
+        int width = getGLFWIntField("mGLFWWindowWidth", 320);
+        int height = getGLFWIntField("mGLFWWindowHeight", 240);
+        int scale = Math.max(Math.min(width / 320, height / 240), 1);
         if(scale < guiScale || guiScale == 0){
             guiScale = scale;
         }

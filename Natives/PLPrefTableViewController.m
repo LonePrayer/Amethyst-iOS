@@ -54,7 +54,19 @@
 
     // Put navigation buttons back in place if we're first of the navigation controller
     if (self.hasDetail && self.navigationController) {
-        self.navigationItem.rightBarButtonItems = @[[sidebarViewController drawAccountButton], [self drawHelpButton]];
+        NSMutableArray<UIBarButtonItem *> *items = [NSMutableArray array];
+        UIViewController *primaryController = self.splitViewController.viewControllers.firstObject;
+        if ([primaryController isKindOfClass:UINavigationController.class]) {
+            UIViewController *menuController = ((UINavigationController *)primaryController).viewControllers.firstObject;
+            if ([menuController isKindOfClass:LauncherMenuViewController.class]) {
+                UIBarButtonItem *accountButton = [(LauncherMenuViewController *)menuController drawAccountButton];
+                if (accountButton) {
+                    [items addObject:accountButton];
+                }
+            }
+        }
+        [items addObject:[self drawHelpButton]];
+        self.navigationItem.rightBarButtonItems = items;
     }
 
     // Scan for child pane cells and reload them

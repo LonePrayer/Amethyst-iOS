@@ -1,4 +1,5 @@
 #import "authenticator/BaseAuthenticator.h"
+#import "AMModulesViewController.h"
 #import "AppDelegate.h"
 #import "SceneDelegate.h"
 #import "LauncherNavigationController.h"
@@ -154,7 +155,9 @@ void UIKit_returnToSplitView() {
 }
 
 void launchInitialViewController(UIWindow *window) {
-    window.rootViewController = [[LauncherSplitViewController alloc] initWithStyle:UISplitViewControllerStyleDoubleColumn];
+    LauncherNavigationController *navigationController = [[LauncherNavigationController alloc] initWithRootViewController:[[AMModulesViewController alloc] init]];
+    navigationController.toolbarHidden = YES;
+    window.rootViewController = navigationController;
 #if 0
     if (getPrefBool(@"internal.internal_launch_on_boot")) {
         window.rootViewController = [[SurfaceViewController alloc] init];

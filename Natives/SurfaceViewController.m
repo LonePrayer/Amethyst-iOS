@@ -119,6 +119,7 @@ static GameSurfaceView* pojavWindow;
     self.surfaceView.layer.contentsScale = screenScale * resolutionScale;
     self.surfaceView.layer.magnificationFilter = self.surfaceView.layer.minificationFilter = kCAFilterNearest;
     self.surfaceView.multipleTouchEnabled = YES;
+    [self updatePerformanceHUD];
     pojavWindow = self.surfaceView;
 
     self.touchView = [[UIView alloc] initWithFrame:self.view.frame];
@@ -351,14 +352,26 @@ static GameSurfaceView* pojavWindow;
     // Update resolution
     [self updateSavedResolution];
     // Update performance HUD visibility
-    if (@available(iOS 16, tvOS 16, *)) {
-        if ([self.surfaceView.layer isKindOfClass:CAMetalLayer.class]) {
-            BOOL perfHUDEnabled = getPrefBool(@"video.performance_hud");
-            ((CAMetalLayer *)self.surfaceView.layer).developerHUDProperties = perfHUDEnabled ? @{@"mode": @"default"} : nil;
-        }
-    }
+    [self updatePerformanceHUD];
     // Update pointer lock state
     [self setNeedsUpdateOfPrefersPointerLocked];
+}
+
+- (void)updatePerformanceHUD {
+    BOOL perfHUDEnabled = getPrefBool(@"video.performance_hud");
+    setenv("MTL_HUD_ENABLED", perfHUDEnabled ? "1" : "0", 1);
+    if (perfHUDEnabled) {
+        setenv("MTL_HUD_PROPERTIES", "mode=default", 1);
+    }
+
+    if (@available(iOS 16, tvOS 16, *)) {
+        if ([self.surfaceView.layer isKindOfClass:CAMetalLayer.class]) {
+            ((CAMetalLayer *)self.surfaceView.layer).developerHUDProperties = perfHUDEnabled ? @{@"mode": @"default"} : nil;
+            NSLog(@"[PerformanceHUD] Metal HUD %@ on %@", perfHUDEnabled ? @"enabled" : @"disabled", NSStringFromClass(self.surfaceView.layer.class));
+        } else {
+            NSLog(@"[PerformanceHUD] Metal HUD skipped for layer %@", NSStringFromClass(self.surfaceView.layer.class));
+        }
+    }
 }
 
 - (void)updateSavedResolution {

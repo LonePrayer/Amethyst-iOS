@@ -74,7 +74,7 @@
 		</dict>
 	</dict>
 	<key>CFBundleIdentifier</key>
-	<string>org.angelauramc.amethyst</string>
+	<string>sb.cemuios.cemuios</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
@@ -89,15 +89,17 @@
 	<array>
 		<dict>
 			<key>CFBundleURLName</key>
-			<string>org.angelauramc.amethyst.urlscheme</string>
+			<string>sb.cemuios.cemuios.urlscheme</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>amethyst</string>
+				<string>sidestore-sb.cemuios.cemuios</string>
+				<string>sidestore-sb.cemuios.cemuios.4QYW94SHKR</string>
 			</array>
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
-	<string>1.0</string>
+	<string>1.0.50</string>
 	<key>GCSupportedGameControllers</key>
 	<array>
 		<dict>

@@ -1,0 +1,19 @@
+{
+  "identifier": "dolphin",
+  "name": "Dolphin",
+  "subtitle": "GameCube / Wii Emulator",
+  "imageName": "gamecontroller",
+  "entrypoint": "dolphin",
+  "requiresJIT": true,
+  "requiresMemoryLimit": true,
+  "requiresExtendedVirtualAddressing": false,
+  "storageSubdirectories": [
+    "Software"
+  ],
+  "debugInfo": {
+    "runtime": "native",
+    "core": "libdolphin.dylib",
+    "upstream": "OatmealDome/dolphin-ios v5.0.0b4",
+    "notes": "First pass packages Dolphin core and resources; UI lifecycle bridge is next."
+  }
+}
