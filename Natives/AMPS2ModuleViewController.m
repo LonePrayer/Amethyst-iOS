@@ -7,6 +7,7 @@
 #import <dlfcn.h>
 #import <GameController/GameController.h>
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
+#include <stdarg.h>
 
 typedef NS_ENUM(NSInteger, AMPS2Section) {
     AMPS2SectionActions = 0,
@@ -58,6 +59,31 @@ static NSString * const AMPS2SelectedBIOSPathKey = @"AMPS2SelectedBIOSPath";
 static NSString * const AMPS2AspectRatioKey = @"AMPS2AspectRatio";
 static NSString * const AMPS2UpscaleMultiplierKey = @"AMPS2UpscaleMultiplier";
 static NSString * const AMPS2VSyncKey = @"AMPS2VSync";
+
+static void AMPS2AutomationLog(NSString *format, ...)
+{
+    va_list args;
+    va_start(args, format);
+    NSString *message = [[NSString alloc] initWithFormat:format arguments:args];
+    va_end(args);
+
+    NSLog(@"%@", message);
+
+    NSURL *documentsURL = [NSFileManager.defaultManager URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask].firstObject;
+    NSURL *logDirectoryURL = [[documentsURL URLByAppendingPathComponent:@"ps2" isDirectory:YES] URLByAppendingPathComponent:@"Logs" isDirectory:YES];
+    [NSFileManager.defaultManager createDirectoryAtURL:logDirectoryURL withIntermediateDirectories:YES attributes:nil error:nil];
+
+    NSURL *logURL = [logDirectoryURL URLByAppendingPathComponent:@"automation.log"];
+    NSString *line = [NSString stringWithFormat:@"%@ %@\n", NSDate.date, message];
+    NSFileHandle *handle = [NSFileHandle fileHandleForWritingAtPath:logURL.path];
+    if (!handle) {
+        [line writeToURL:logURL atomically:YES encoding:NSUTF8StringEncoding error:nil];
+        return;
+    }
+    [handle seekToEndOfFile];
+    [handle writeData:[line dataUsingEncoding:NSUTF8StringEncoding]];
+    [handle closeFile];
+}
 static NSString * const AMPS2FXAAKey = @"AMPS2FXAA";
 static NSString * const AMPS2IntegerScalingKey = @"AMPS2IntegerScaling";
 static NSString * const AMPS2FrameLimitKey = @"AMPS2FrameLimit";
@@ -310,18 +336,26 @@ static NSURL *AMPS2ResolveExternalFolderURL(void)
                                     bookmarkDataIsStale:&stale
                                                   error:&error];
         if (url && !stale) {
+            AMPS2AutomationLog(@"[PS2] Resolved external folder: %@", url.path);
             return url;
         }
-        NSLog(@"[PS2] External folder bookmark failed: stale=%d error=%@", stale, error.localizedDescription);
+        AMPS2AutomationLog(@"[PS2] External folder bookmark failed: stale=%d error=%@", stale, error.localizedDescription);
     }
 
     NSString *forcedPath = @(getenv("AM_PS2_HOME") ?: "");
-    return forcedPath.length > 0 ? [NSURL fileURLWithPath:forcedPath isDirectory:YES] : nil;
+    if (forcedPath.length > 0) {
+        AMPS2AutomationLog(@"[PS2] Using AM_PS2_HOME: %@", forcedPath);
+        return [NSURL fileURLWithPath:forcedPath isDirectory:YES];
+    }
+    AMPS2AutomationLog(@"[PS2] No external folder bookmark or AM_PS2_HOME");
+    return nil;
 }
 
 static BOOL AMPS2StartExternalFolderAccess(NSURL *url)
 {
-    return url ? [url startAccessingSecurityScopedResource] : NO;
+    BOOL started = url ? [url startAccessingSecurityScopedResource] : NO;
+    AMPS2AutomationLog(@"[PS2] Security scoped access %@ for %@", started ? @"started" : @"not-started", url.path ?: @"nil");
+    return started;
 }
 
 static void AMPS2StopExternalFolderAccess(NSURL *url, BOOL didStartAccessing)
@@ -1070,12 +1104,13 @@ static BOOL AMPS2CanBootWithCurrentJIT(void)
     UIView *renderView = self.view;
     __weak typeof(self) weakSelf = self;
 
-    NSLog(@"[PS2] Starting game=%@ bios=%@ data=%@ resources=%@", gamePath, biosPath, dataRoot, resourcesRoot);
+    AMPS2AutomationLog(@"[PS2] Starting game=%@ bios=%@ data=%@ resources=%@", gamePath, biosPath, dataRoot, resourcesRoot);
     [self setStatusText:@"Initializing PS2..." keepsVisible:YES];
 
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        AMPS2AutomationLog(@"[PS2] Calling initialize");
         int initResult = gPS2Initialize(dataRoot.UTF8String, resourcesRoot.UTF8String);
-        NSLog(@"[PS2] Initialize returned: %d", initResult);
+        AMPS2AutomationLog(@"[PS2] Initialize returned: %d lastError=%@", initResult, AMPS2LastErrorMessage());
         if (!initResult) {
             NSString *message = AMPS2LastErrorMessage();
             dispatch_async(dispatch_get_main_queue(), ^{
@@ -1090,17 +1125,43 @@ static BOOL AMPS2CanBootWithCurrentJIT(void)
         });
 
         int startResult = gPS2Start(renderView, gamePath.UTF8String, biosPath.UTF8String);
-        NSLog(@"[PS2] Start returned: %d", startResult);
+        AMPS2AutomationLog(@"[PS2] Start returned: %d lastError=%@", startResult, AMPS2LastErrorMessage());
         dispatch_async(dispatch_get_main_queue(), ^{
             if (startResult) {
                 [weakSelf setStatusText:[NSString stringWithFormat:@"Running\n%@", gameName] keepsVisible:NO];
                 [weakSelf hideTransientControls];
+                [weakSelf scheduleRuntimeDiagnosticsForGame:gameName];
             } else {
                 [weakSelf setStatusText:AMPS2LastErrorMessage() keepsVisible:YES];
                 [weakSelf showControlsTemporarily];
             }
         });
     });
+}
+
+- (void)scheduleRuntimeDiagnosticsForGame:(NSString *)gameName
+{
+    NSArray<NSNumber *> *delays = @[@3, @10, @30];
+    __weak typeof(self) weakSelf = self;
+    for (NSNumber *delay in delays) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            __strong typeof(weakSelf) self = weakSelf;
+            if (!self) {
+                return;
+            }
+
+            int running = gPS2IsRunning ? gPS2IsRunning() : -1;
+            NSUInteger sublayerCount = self.view.layer.sublayers.count;
+            AMPS2AutomationLog(@"[PS2] Runtime +%@s game=%@ running=%d hidden=%@ layerCount=%lu bounds=%@ lastError=%@",
+                delay,
+                gameName ?: @"",
+                running,
+                self.view.window.hidden ? @"YES" : @"NO",
+                (unsigned long)sublayerCount,
+                NSStringFromCGRect(self.view.bounds),
+                AMPS2LastErrorMessage());
+        });
+    }
 }
 
 - (void)stopEmulation
@@ -1305,11 +1366,20 @@ static BOOL AMPS2CanBootWithCurrentJIT(void)
         ? @(autoBoot)
         : [NSUserDefaults.standardUserDefaults stringForKey:@"AMInternalPS2AutoBootPath"];
     if (self.didHandleAutoBoot || request.length == 0) {
+        AMPS2AutomationLog(@"[PS2] Module auto boot skipped handled=%@ request=%@ games=%lu",
+            self.didHandleAutoBoot ? @"YES" : @"NO",
+            request ?: @"",
+            (unsigned long)self.gameURLs.count);
         return;
     }
 
     self.didHandleAutoBoot = YES;
     [self refreshDiagnostics];
+    AMPS2AutomationLog(@"[PS2] Module auto boot request=%@ games=%lu software=%@ bios=%@",
+        request,
+        (unsigned long)self.gameURLs.count,
+        self.softwareDirectoryURL.path ?: @"nil",
+        [self selectedBIOSURL].path ?: @"nil");
 
     NSURL *gameURL = nil;
     if (![request isEqualToString:@"1"] && ![request isEqualToString:@"first"]) {
@@ -1326,12 +1396,12 @@ static BOOL AMPS2CanBootWithCurrentJIT(void)
     }
 
     if (!gameURL) {
-        NSLog(@"[PS2] Auto boot failed: no software found in %@", self.softwareDirectoryURL.path);
+        AMPS2AutomationLog(@"[PS2] Auto boot failed: no software found in %@", self.softwareDirectoryURL.path);
         [self showAlertWithTitle:@"PS2 Auto Boot Failed" message:@"No PS2 software found in external Software folder."];
         return;
     }
 
-    NSLog(@"[PS2] Auto boot selected: %@", gameURL.path);
+    AMPS2AutomationLog(@"[PS2] Auto boot selected: %@", gameURL.path);
     dispatch_async(dispatch_get_main_queue(), ^{
         [self showPendingBootForURL:gameURL];
     });
@@ -1348,7 +1418,7 @@ static BOOL AMPS2CanBootWithCurrentJIT(void)
     if (!self.coreHandle) {
         const char *error = dlerror();
         self.loadStatus = error ? @(error) : @"dlopen failed";
-        NSLog(@"[PS2] Failed to load libarmsx2_amethyst.dylib: %@", self.loadStatus);
+        AMPS2AutomationLog(@"[PS2] Failed to load libarmsx2_amethyst.dylib: %@", self.loadStatus);
         return;
     }
 
@@ -1364,7 +1434,7 @@ static BOOL AMPS2CanBootWithCurrentJIT(void)
     gPS2ResetPad = (AMPS2ResetPadFunction)dlsym(self.coreHandle, "ARMSX2AmethystResetPad");
     gPS2LastError = (AMPS2LastErrorFunction)dlsym(self.coreHandle, "ARMSX2AmethystLastError");
     self.loadStatus = gPS2Initialize && gPS2Start && gPS2Stop ? @"Loaded; bridge ready" : @"Loaded; bridge missing";
-    NSLog(@"[PS2] Loaded libarmsx2_amethyst.dylib: %@", self.loadStatus);
+    AMPS2AutomationLog(@"[PS2] Loaded libarmsx2_amethyst.dylib: %@", self.loadStatus);
 }
 
 - (NSURL *)ps2UserDirectoryURL

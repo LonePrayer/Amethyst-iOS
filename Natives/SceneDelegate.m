@@ -112,6 +112,9 @@ static NSString *SideStoreSignedBundleIdentifier(void) {
         if ([NSUserDefaults.standardUserDefaults stringForKey:@"AMInternalDolphinAutoBootPath"].length > 0) {
             [NSNotificationCenter.defaultCenter postNotificationName:@"AMDolphinAutoBootRequestedNotification" object:nil];
         }
+        if ([NSUserDefaults.standardUserDefaults stringForKey:@"AMInternalPS2AutoBootPath"].length > 0) {
+            [NSNotificationCenter.defaultCenter postNotificationName:@"AMPS2AutoBootRequestedNotification" object:nil];
+        }
         return;
     }
 

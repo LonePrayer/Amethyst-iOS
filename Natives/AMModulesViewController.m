@@ -8,12 +8,38 @@
 #import "utils.h"
 
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
+#include <stdarg.h>
 #include <string.h>
 
 extern void init_setupAccounts(void);
 extern void init_setupCustomControls(void);
 extern void init_setupMultiDir(void);
 extern void init_setupResolvConf(void);
+
+static void AMModulesAutomationLog(NSString *format, ...)
+{
+    va_list args;
+    va_start(args, format);
+    NSString *message = [[NSString alloc] initWithFormat:format arguments:args];
+    va_end(args);
+
+    NSLog(@"%@", message);
+
+    NSURL *documentsURL = [NSFileManager.defaultManager URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask].firstObject;
+    NSURL *logDirectoryURL = [[documentsURL URLByAppendingPathComponent:@"ps2" isDirectory:YES] URLByAppendingPathComponent:@"Logs" isDirectory:YES];
+    [NSFileManager.defaultManager createDirectoryAtURL:logDirectoryURL withIntermediateDirectories:YES attributes:nil error:nil];
+
+    NSURL *logURL = [logDirectoryURL URLByAppendingPathComponent:@"automation.log"];
+    NSString *line = [NSString stringWithFormat:@"%@ %@\n", NSDate.date, message];
+    NSFileHandle *handle = [NSFileHandle fileHandleForWritingAtPath:logURL.path];
+    if (!handle) {
+        [line writeToURL:logURL atomically:YES encoding:NSUTF8StringEncoding error:nil];
+        return;
+    }
+    [handle seekToEndOfFile];
+    [handle writeData:[line dataUsingEncoding:NSUTF8StringEncoding]];
+    [handle closeFile];
+}
 
 typedef NS_ENUM(NSInteger, AMModulesSection) {
     AMModulesSectionActions = 0,
@@ -80,7 +106,7 @@ static NSString *AMSideStoreSignedBundleIdentifier(void) {
     [super viewDidLoad];
 
     [self reloadModules];
-    NSLog(@"[Apps] Loaded module picker, modules=%lu", (unsigned long)self.modules.count);
+    AMModulesAutomationLog(@"[Apps] Loaded module picker, modules=%lu", (unsigned long)self.modules.count);
 
     [NSNotificationCenter.defaultCenter addObserver:self
                                            selector:@selector(refreshRuntimeState)
@@ -93,6 +119,10 @@ static NSString *AMSideStoreSignedBundleIdentifier(void) {
     [NSNotificationCenter.defaultCenter addObserver:self
                                            selector:@selector(handleAutoBootNotification)
                                                name:@"AMDolphinAutoBootRequestedNotification"
+                                             object:nil];
+    [NSNotificationCenter.defaultCenter addObserver:self
+                                           selector:@selector(handleAutoBootNotification)
+                                               name:@"AMPS2AutoBootRequestedNotification"
                                              object:nil];
 }
 
@@ -109,6 +139,10 @@ static NSString *AMSideStoreSignedBundleIdentifier(void) {
 
 - (void)viewDidAppear:(BOOL)animated {
     [super viewDidAppear:animated];
+    AMModulesAutomationLog(@"[Apps] viewDidAppear jit=%@ ps2Auto=%@ dolphinAuto=%@",
+        isJITEnabled(false) ? @"ON" : @"OFF",
+        [NSUserDefaults.standardUserDefaults stringForKey:@"AMInternalPS2AutoBootPath"] ?: @"",
+        [NSUserDefaults.standardUserDefaults stringForKey:@"AMInternalDolphinAutoBootPath"] ?: @"");
     [self handleAutoBootIfNeeded];
 }
 
@@ -148,12 +182,18 @@ static NSString *AMSideStoreSignedBundleIdentifier(void) {
             return;
         }
 
-        NSLog(@"[PS2] Auto boot requested: %@", pendingPS2AutoBoot);
+        AMModulesAutomationLog(@"[PS2] Auto boot requested: %@ jit=%@ memory=%@ extendedVA=%@",
+            pendingPS2AutoBoot,
+            isJITEnabled(false) ? @"ON" : @"OFF",
+            getEntitlementValue(@"com.apple.developer.kernel.increased-memory-limit") ? @"YES" : @"NO",
+            getEntitlementValue(@"com.apple.developer.kernel.extended-virtual-addressing") ? @"YES" : @"NO");
         if (![self canLaunchModule:module]) {
+            AMModulesAutomationLog(@"[PS2] Auto boot blocked by launch requirements");
             return;
         }
 
         void (^launchBlock)(void) = ^{
+            AMModulesAutomationLog(@"[PS2] Auto boot launching module");
             [self launchModule:module];
         };
         const char *noJIT = getenv("AM_PS2_AUTO_BOOT_NO_JIT");
@@ -161,9 +201,11 @@ static NSString *AMSideStoreSignedBundleIdentifier(void) {
         if (module.requiresJIT && !shouldSkipJIT && !isJITEnabled(false)) {
             LauncherNavigationController *navigationController = [self contentNavigationController];
             if (!navigationController) {
+                AMModulesAutomationLog(@"[PS2] Auto boot failed: missing navigation controller");
                 [self showLaunchFailure:@"Cannot find launcher navigation controller."];
                 return;
             }
+            AMModulesAutomationLog(@"[PS2] Auto boot waiting for JIT");
             [navigationController runAfterJITEnabled:launchBlock];
         } else {
             launchBlock();
@@ -452,11 +494,13 @@ static NSString *AMSideStoreSignedBundleIdentifier(void) {
 
 - (BOOL)canLaunchModule:(AMModule *)module {
     if (module.requiresMemoryLimit && !getEntitlementValue(@"com.apple.developer.kernel.increased-memory-limit")) {
+        AMModulesAutomationLog(@"[%@] Missing Increased Memory Limit entitlement", module.identifier);
         [self showLaunchFailure:@"Missing Increased Memory Limit entitlement."];
         return NO;
     }
 
     if (module.requiresExtendedVirtualAddressing && !getEntitlementValue(@"com.apple.developer.kernel.extended-virtual-addressing")) {
+        AMModulesAutomationLog(@"[%@] Missing Extended Virtual Addressing entitlement", module.identifier);
         [self showLaunchFailure:@"Missing Extended Virtual Addressing entitlement."];
         return NO;
     }
@@ -563,6 +607,7 @@ static NSString *AMSideStoreSignedBundleIdentifier(void) {
     if (!viewController.title) {
         viewController.title = module.name;
     }
+    AMModulesAutomationLog(@"[%@] Pushing module view controller %@", module.identifier, NSStringFromClass(viewController.class));
     [navigationController pushViewController:viewController animated:YES];
 }
 
